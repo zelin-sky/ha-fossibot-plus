@@ -42,7 +42,9 @@ class FossibotCoordinator(DataUpdateCoordinator[dict[str, int]]):
         self.async_update_listeners()
 
     def _on_data(self, metrics: dict[str, int]) -> None:
-        self.async_set_updated_data(metrics)
+        # Frames don't always carry every tag; merge so a partial frame
+        # doesn't blank out values received in earlier ones.
+        self.async_set_updated_data({**(self.data or {}), **metrics})
 
     async def async_start(self) -> None:
         await self._ws.async_start()

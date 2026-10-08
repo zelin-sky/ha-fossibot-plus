@@ -61,6 +61,8 @@ TAG_SOUND              = "3300"  # Sound: 0=off, 1=on — confirmed by ctrl cmd
 
 TAG_TOTAL_INPUT_POWER  = "2200"  # Total input power = grid AC + solar PV (W, scale 1:1)
 TAG_CHARGE_POWER       = "2a00"  # AC charge power limit (W) — set by number entity
+TAG_DC_CHARGE_CURRENT  = "3500"  # DC (PV/car/ext.) charge current, A (u8)
+                                  # 1–8 A default, up to 15 A; F3000 up to 25 A ("extended")
 
 # ✅ CONFIRMED from log analysis (frames with USB active):
 #   2300 = 1400 + 2500 in every observed frame — 100% match across 6 samples.
@@ -82,6 +84,12 @@ CHARGE_POWER_LIMITS: dict[str, dict] = {
     "custom": {"min": 100, "max": 2000, "step": 100},
 }
 
+DC_CHARGE_CURRENT_LIMITS: dict[str, int] = {
+    "f1800": 15,
+    "f3000": 25,
+    "custom": 15,
+}
+
 
 def detect_model(sn_code: str) -> str:
     """Detect model family from the serial number prefix."""
@@ -91,3 +99,34 @@ def detect_model(sn_code: str) -> str:
     if sn.startswith("F300"):
         return "f3000"
     return "custom"
+
+
+# --- Extra registers (from Enduranc3/fossibot-control PROTOCOL.md, decoded from
+# the official app's power-hook.js). Same key numbering as the cloud TLV tags.
+# NOTE: a live F3000 debug log shows cloud WS frames only carry 0100–0500,
+# 1200–1700 and 2200–3a00. Tags marked [not on F3000] never arrive there, so
+# their entities stay "unknown" on that model. Kept for now to check whether
+# other models report them.
+TAG_BATTERY_TEMP_MIN   = "0600"  # i16, °C              [not on F3000]
+TAG_BMS_MOS_TEMP       = "0700"  # i16, °C              [not on F3000]
+TAG_PACK_VOLTAGE       = "0800"  # u16, ×0.1 V          [not on F3000]
+TAG_BATTERY_CURRENT    = "0900"  # i32 (i16 if high word is 0000/FFFF), mA  [not on F3000]
+TAG_BMS_FAULT          = "0c00"  # u32 bitmask          [not on F3000]
+TAG_DC_INPUT_POWER     = "1700"  # u16, W — solar / DC input
+TAG_INVERTER_TEMP      = "1800"  # i16, °C              [not on F3000]
+TAG_MOS_TEMP           = "1900"  # i16, °C              [not on F3000]
+TAG_PCS_FAULT          = "1a00"  # u32                  [not on F3000]
+TAG_PV_VOLTAGE         = "1b00"  # u16, ×0.1 V          [not on F3000]
+TAG_PV_CURRENT         = "1c00"  # i32, mA              [not on F3000]
+TAG_PV_FAULT           = "1e00"  # u32                  [not on F3000]
+TAG_DC_OUTPUT_POWER    = "2400"  # u16, W — DC 12V output
+TAG_FIRMWARE           = "2f00"  # u32, shown as v3-v2-v1-v0 hex
+TAG_BMS_VERSION        = "0500"  # u32, same format
+TAG_PCS_VERSION        = "1200"  # u32, same format
+TAG_SOLAR_ENERGY       = "3000"  # u16, kWh
+TAG_CHARGE_LIMIT       = "3100"  # u8, 60–100 %
+TAG_DISCHARGE_LIMIT    = "3200"  # u8, 0–20 %
+TAG_SCREEN_BRIGHTNESS  = "3400"  # u8, 0–100 %
+TAG_DC_STANDBY         = "3800"  # u8: 0 never,1=30m,2=1h,3=4h,4=8h,5=12h,6=24h
+TAG_USB_STANDBY        = "3900"  # same as DC
+TAG_AC_STANDBY         = "3a00"  # same as DC

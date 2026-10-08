@@ -12,7 +12,10 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
+    EntityCategory,
     PERCENTAGE,
+    UnitOfElectricCurrent,
+    UnitOfEnergy,
     UnitOfElectricPotential,
     UnitOfFrequency,
     UnitOfPower,
@@ -38,6 +41,23 @@ from .const import (
     TAG_TOTAL_INPUT_POWER,
     TAG_TOTAL_OUTPUT_POWER,
     TAG_USB_OUTPUT_POWER,
+    TAG_BATTERY_TEMP_MIN,
+    TAG_BMS_MOS_TEMP,
+    TAG_PACK_VOLTAGE,
+    TAG_BATTERY_CURRENT,
+    TAG_BMS_FAULT,
+    TAG_DC_INPUT_POWER,
+    TAG_INVERTER_TEMP,
+    TAG_MOS_TEMP,
+    TAG_PCS_FAULT,
+    TAG_PV_VOLTAGE,
+    TAG_PV_CURRENT,
+    TAG_PV_FAULT,
+    TAG_DC_OUTPUT_POWER,
+    TAG_FIRMWARE,
+    TAG_BMS_VERSION,
+    TAG_PCS_VERSION,
+    TAG_SOLAR_ENERGY,
 )
 from .coordinator import FossibotCoordinator
 
@@ -48,6 +68,28 @@ class FossibotSensorDescription(SensorEntityDescription):
     scale: float = 1
     # Optional post-processing (e.g. take only low 16 bits)
     raw_transform: Callable[[int], int] | None = None
+    # Optional formatter producing the final (e.g. string) state
+    formatter: Callable[[int], str] | None = None
+
+
+def _i16(v: int) -> int:
+    """Signed 16-bit from the low word."""
+    v &= 0xFFFF
+    return v - 0x10000 if v >= 0x8000 else v
+
+
+def _i32_app(v: int) -> int:
+    """Signed value as the official app decodes it: if the high word is
+    0x0000/0xFFFF treat it as sign-extended i16, otherwise as i32."""
+    hi = (v >> 16) & 0xFFFF
+    if hi in (0x0000, 0xFFFF):
+        return _i16(v)
+    return v - 0x100000000 if v >= 0x80000000 else v
+
+
+def _version(v: int) -> str:
+    b = v.to_bytes(4, "little")
+    return "-".join(f"{x:02x}" for x in reversed(b))
 
 
 def _low16(v: int) -> int:
@@ -170,6 +212,107 @@ SENSOR_TYPES: tuple[FossibotSensorDescription, ...] = (
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
     ),
+
+    # ➕ Extra registers (fossibot-control register map) ─────────────────────
+    # Battery voltage/current, temperatures other than 0200, DC input
+    # voltage/current and fault codes are not sent by F3000 (see const.py)
+    # and stay "unknown" there; kept to check other models.
+    FossibotSensorDescription(
+        key="pack_voltage", tag=TAG_PACK_VOLTAGE, name="Battery voltage",
+        translation_key="pack_voltage", scale=0.1,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="battery_current", tag=TAG_BATTERY_CURRENT, name="Battery current",
+        translation_key="battery_current", scale=0.001, raw_transform=_i32_app,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="battery_temp_min", tag=TAG_BATTERY_TEMP_MIN, name="Battery temperature min",
+        translation_key="battery_temp_min", raw_transform=_i16,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="bms_mos_temp", tag=TAG_BMS_MOS_TEMP, name="BMS MOS temperature",
+        translation_key="bms_mos_temp", raw_transform=_i16,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="dc_input_power", tag=TAG_DC_INPUT_POWER, name="DC input power",
+        translation_key="dc_input_power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="pv_voltage", tag=TAG_PV_VOLTAGE, name="DC input voltage",
+        translation_key="pv_voltage", scale=0.1,
+        native_unit_of_measurement=UnitOfElectricPotential.VOLT,
+        device_class=SensorDeviceClass.VOLTAGE, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="pv_current", tag=TAG_PV_CURRENT, name="DC input current",
+        translation_key="pv_current", scale=0.001, raw_transform=_i32_app,
+        native_unit_of_measurement=UnitOfElectricCurrent.AMPERE,
+        device_class=SensorDeviceClass.CURRENT, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="solar_energy", tag=TAG_SOLAR_ENERGY, name="DC input energy",
+        translation_key="solar_energy",
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        device_class=SensorDeviceClass.ENERGY, state_class=SensorStateClass.TOTAL_INCREASING,
+    ),
+    FossibotSensorDescription(
+        key="dc_output_power", tag=TAG_DC_OUTPUT_POWER, name="DC output power",
+        translation_key="dc_output_power",
+        native_unit_of_measurement=UnitOfPower.WATT,
+        device_class=SensorDeviceClass.POWER, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="inverter_temp", tag=TAG_INVERTER_TEMP, name="Inverter temperature",
+        translation_key="inverter_temp", raw_transform=_i16,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+    ),
+    FossibotSensorDescription(
+        key="mos_temp", tag=TAG_MOS_TEMP, name="MOS temperature",
+        translation_key="mos_temp", raw_transform=_i16,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="bms_fault", tag=TAG_BMS_FAULT, name="BMS fault code",
+        translation_key="bms_fault", entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="pcs_fault", tag=TAG_PCS_FAULT, name="PCS fault code",
+        translation_key="pcs_fault", entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="pv_fault", tag=TAG_PV_FAULT, name="DC input fault code",
+        translation_key="pv_fault", entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="firmware", tag=TAG_FIRMWARE, name="Firmware",
+        translation_key="firmware", formatter=_version,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="bms_version", tag=TAG_BMS_VERSION, name="BMS version",
+        translation_key="bms_version", formatter=_version,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    FossibotSensorDescription(
+        key="pcs_version", tag=TAG_PCS_VERSION, name="PCS version",
+        translation_key="pcs_version", formatter=_version,
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
 )
 
 
@@ -212,6 +355,8 @@ class FossibotSensor(CoordinatorEntity[FossibotCoordinator], SensorEntity):
         raw = self.coordinator.data.get(self.entity_description.tag)
         if raw is None:
             return None
+        if self.entity_description.formatter is not None:
+            return self.entity_description.formatter(raw)
         if self.entity_description.raw_transform is not None:
             raw = self.entity_description.raw_transform(raw)
         return round(raw * self.entity_description.scale, 2)

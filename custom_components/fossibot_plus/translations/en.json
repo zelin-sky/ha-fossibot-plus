@@ -55,6 +55,57 @@
       },
       "charge_power": {
         "name": "Charge power"
+      },
+      "pack_voltage": {
+        "name": "Battery voltage"
+      },
+      "battery_current": {
+        "name": "Battery current"
+      },
+      "battery_temp_min": {
+        "name": "Battery temperature min"
+      },
+      "bms_mos_temp": {
+        "name": "BMS MOS temperature"
+      },
+      "dc_input_power": {
+        "name": "DC input power"
+      },
+      "pv_voltage": {
+        "name": "DC input voltage"
+      },
+      "pv_current": {
+        "name": "DC input current"
+      },
+      "solar_energy": {
+        "name": "DC input energy"
+      },
+      "dc_output_power": {
+        "name": "DC output power"
+      },
+      "inverter_temp": {
+        "name": "Inverter temperature"
+      },
+      "mos_temp": {
+        "name": "MOS temperature"
+      },
+      "bms_fault": {
+        "name": "BMS fault code"
+      },
+      "pcs_fault": {
+        "name": "PCS fault code"
+      },
+      "pv_fault": {
+        "name": "DC input fault code"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "bms_version": {
+        "name": "BMS version"
+      },
+      "pcs_version": {
+        "name": "PCS version"
       }
     },
     "switch": {
@@ -90,11 +141,80 @@
           "ups": "UPS",
           "eco": "ECO"
         }
+      },
+      "dc_standby": {
+        "name": "DC standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "usb_standby": {
+        "name": "USB standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "ac_standby": {
+        "name": "AC standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "screen_timeout": {
+        "name": "Screen timeout",
+        "state": {
+          "always_on": "Always on",
+          "30s": "30 s",
+          "1m": "1 min",
+          "5m": "5 min",
+          "10m": "10 min",
+          "30m": "30 min"
+        }
+      },
+      "power_off_timer": {
+        "name": "Power-off timer",
+        "state": {
+          "never": "Never",
+          "5m": "5 min",
+          "10m": "10 min",
+          "1h": "1 h",
+          "8h": "8 h"
+        }
       }
     },
     "number": {
       "charge_power_limit": {
         "name": "Charge power limit"
+      },
+      "dc_charge_current": {
+        "name": "DC charge current"
+      },
+      "charge_limit": {
+        "name": "Charge limit"
+      },
+      "discharge_limit": {
+        "name": "Discharge limit"
+      },
+      "screen_brightness": {
+        "name": "Screen brightness"
       }
     }
   }
