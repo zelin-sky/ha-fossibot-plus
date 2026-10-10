@@ -26,8 +26,6 @@ Multiple stations in one account are supported — each gets its own device with
 
 ---
 
----
-
 ## 🙏 Acknowledgements
 
 ---
