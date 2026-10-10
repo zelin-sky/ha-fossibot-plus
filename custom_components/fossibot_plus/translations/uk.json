@@ -35,6 +35,9 @@
       "ac_output_power": {
         "name": "Вихідна потужність AC"
       },
+      "dc_output_power": {
+        "name": "Вихідна потужність DC"
+      },
       "usb_output_power": {
         "name": "Вихідна потужність USB"
       },
@@ -50,11 +53,26 @@
       "ac_grid_power": {
         "name": "Потужність від мережі"
       },
+      "dc_input_power": {
+        "name": "Вхідна потужність DC"
+      },
       "total_input_power": {
         "name": "Сумарна вхідна потужність"
       },
       "charge_power": {
         "name": "Потужність заряджання"
+      },
+      "solar_energy": {
+        "name": "Накопичена енергія DC"
+      },
+      "firmware": {
+        "name": "Прошивка"
+      },
+      "bms_version": {
+        "name": "Версія BMS"
+      },
+      "pcs_version": {
+        "name": "Версія PCS"
       }
     },
     "switch": {
@@ -90,11 +108,80 @@
           "ups": "UPS",
           "eco": "ECO"
         }
+      },
+      "dc_standby": {
+        "name": "Режим DC standby",
+        "state": {
+          "never": "Ніколи",
+          "30m": "30 хв",
+          "1h": "1 год",
+          "4h": "4 год",
+          "8h": "8 год",
+          "12h": "12 год",
+          "24h": "24 год"
+        }
+      },
+      "usb_standby": {
+        "name": "Режим USB standby",
+        "state": {
+          "never": "Ніколи",
+          "30m": "30 хв",
+          "1h": "1 год",
+          "4h": "4 год",
+          "8h": "8 год",
+          "12h": "12 год",
+          "24h": "24 год"
+        }
+      },
+      "ac_standby": {
+        "name": "Режим AC standby",
+        "state": {
+          "never": "Ніколи",
+          "30m": "30 хв",
+          "1h": "1 год",
+          "4h": "4 год",
+          "8h": "8 год",
+          "12h": "12 год",
+          "24h": "24 год"
+        }
+      },
+      "screen_timeout": {
+        "name": "Таймаут екрану",
+        "state": {
+          "always_on": "Завжди увімкнено",
+          "30s": "30 с",
+          "1m": "1 хв",
+          "5m": "5 хв",
+          "10m": "10 хв",
+          "30m": "30 хв"
+        }
+      },
+      "power_off_timer": {
+        "name": "Таймер вимкнення",
+        "state": {
+          "never": "Ніколи",
+          "5m": "5 хв",
+          "10m": "10 хв",
+          "1h": "1 год",
+          "8h": "8 год"
+        }
       }
     },
     "number": {
       "charge_power_limit": {
-        "name": "Потужність заряджання (ліміт)"
+        "name": "Ліміт потужності заряду"
+      },
+      "dc_charge_current": {
+        "name": "Струм DC заряду"
+      },
+      "charge_limit": {
+        "name": "Ліміт заряду"
+      },
+      "discharge_limit": {
+        "name": "Ліміт розряду"
+      },
+      "screen_brightness": {
+        "name": "Яскравість екрану"
       }
     }
   }

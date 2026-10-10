@@ -35,6 +35,9 @@
       "ac_output_power": {
         "name": "AC output power"
       },
+      "dc_output_power": {
+        "name": "DC output power"
+      },
       "usb_output_power": {
         "name": "USB output power"
       },
@@ -50,11 +53,26 @@
       "ac_grid_power": {
         "name": "AC grid power"
       },
+      "dc_input_power": {
+        "name": "DC input power"
+      },
       "total_input_power": {
         "name": "Total input power"
       },
       "charge_power": {
         "name": "Charge power"
+      },
+      "solar_energy": {
+        "name": "DC input energy"
+      },
+      "firmware": {
+        "name": "Firmware"
+      },
+      "bms_version": {
+        "name": "BMS version"
+      },
+      "pcs_version": {
+        "name": "PCS version"
       }
     },
     "switch": {
@@ -90,11 +108,80 @@
           "ups": "UPS",
           "eco": "ECO"
         }
+      },
+      "dc_standby": {
+        "name": "DC standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "usb_standby": {
+        "name": "USB standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "ac_standby": {
+        "name": "AC standby",
+        "state": {
+          "never": "Never",
+          "30m": "30 min",
+          "1h": "1 h",
+          "4h": "4 h",
+          "8h": "8 h",
+          "12h": "12 h",
+          "24h": "24 h"
+        }
+      },
+      "screen_timeout": {
+        "name": "Screen timeout",
+        "state": {
+          "always_on": "Always on",
+          "30s": "30 s",
+          "1m": "1 min",
+          "5m": "5 min",
+          "10m": "10 min",
+          "30m": "30 min"
+        }
+      },
+      "power_off_timer": {
+        "name": "Power-off timer",
+        "state": {
+          "never": "Never",
+          "5m": "5 min",
+          "10m": "10 min",
+          "1h": "1 h",
+          "8h": "8 h"
+        }
       }
     },
     "number": {
       "charge_power_limit": {
         "name": "Charge power limit"
+      },
+      "dc_charge_current": {
+        "name": "DC charge current"
+      },
+      "charge_limit": {
+        "name": "Charge limit"
+      },
+      "discharge_limit": {
+        "name": "Discharge limit"
+      },
+      "screen_brightness": {
+        "name": "Screen brightness"
       }
     }
   }

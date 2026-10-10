@@ -1,12 +1,14 @@
 {
   "domain": "fossibot_plus",
   "name": "FOSSiBOT Power Station",
-  "codeowners": ["@zelin-sky"],
+  "codeowners": [
+    "@zelin-sky"
+  ],
   "config_flow": true,
   "documentation": "https://github.com/zelin-sky/ha-fossibot-plus",
   "issue_tracker": "https://github.com/zelin-sky/ha-fossibot-plus/issues",
   "iot_class": "cloud_push",
   "integration_type": "hub",
   "requirements": [],
-  "version": "0.1.5"
+  "version": "0.1.6-beta"
 }
