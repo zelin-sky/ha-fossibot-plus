@@ -28,11 +28,10 @@ Multiple stations in one account are supported — each gets its own device with
 
 ---
 
-## 🙏 Acknowledgements / Подяки
+## 🙏 Acknowledgements
 
 ---
 
-### 🇬🇧 English
 
 **Special thanks to everyone who contributed to making this integration better:**
 
@@ -116,6 +115,10 @@ Multiple stations in one account are supported — each gets its own device with
 | Інші моделі Fossibot+ | ⚠️ Можливо сумісні |
 
 Підтримується декілька станцій в одному обліковому записі — кожна отримує окремий пристрій із серійним номером у назві (наприклад `Fossibot-F180V012605B4936`).
+
+---
+
+## 🙏 Подяки
 
 ---
 
