@@ -25,6 +25,9 @@ from .const import (
     LOGIN_ENDPOINT,
     LOGIN_MAX_RETRIES,
     LOGIN_RETRY_DELAY,
+    LOCAL_ACK_FRAME,
+    LOCAL_FRAME_TIMEOUT,
+    LOCAL_HELLO_REPLY,
     RECONNECT_DELAY,
     WS_URL,
 )
@@ -44,6 +47,8 @@ HEADER_LEN = 6  # bytes
 TAIL_LEN = 2    # bytes - CRC16, parsed but NOT validated: the source spec
                 # never documented the checksum algorithm.
 BLOCK_LEN = 6   # bytes per [tag(2)][value(4, little-endian)] block
+HELLO_FRAME_TYPE = 0x0051
+HELLO_FIRMWARE_LEN = 4  # bytes after the ASCII serial in a hello frame
 
 
 class FossibotAuthError(Exception):
@@ -74,6 +79,193 @@ def parse_payload(hex_str: str) -> dict[str, int]:
     return metrics
 
 
+def parse_local_frame(raw: bytes) -> tuple[int, dict[str, int]] | None:
+    """Parse one complete local binary frame and validate its CRC."""
+    if len(raw) < HEADER_LEN + TAIL_LEN:
+        return None
+    length, frame_type, payload_length = struct.unpack_from("<HHH", raw)
+    if length != len(raw) or payload_length != length - HEADER_LEN:
+        return None
+    if frame_type != 0x000B:
+        return None
+    if _crc16_modbus(raw[HEADER_LEN:-TAIL_LEN]) != int.from_bytes(raw[-2:], "big"):
+        return None
+    return frame_type, parse_payload(raw.hex())
+
+
+def parse_local_hello(raw: bytes) -> str | None:
+    """Return the serial from a station hello frame, which carries no CRC."""
+    if len(raw) <= HEADER_LEN + HELLO_FIRMWARE_LEN:
+        return None
+    length, frame_type, payload_length = struct.unpack_from("<HHH", raw)
+    if frame_type != HELLO_FRAME_TYPE or length != len(raw) or payload_length != length - HEADER_LEN:
+        return None
+    try:
+        return raw[HEADER_LEN:-HELLO_FIRMWARE_LEN].decode("ascii")
+    except UnicodeDecodeError:
+        return None
+
+
+def build_local_command(tag_hex: str, value: int) -> bytes:
+    """Build the binary command frame used by the station's local TCP mode."""
+    record = bytes.fromhex(tag_hex) + value.to_bytes(4, "little")
+    crc = _crc16_modbus(record)
+    return b"\x0e\x00\x0c\x00\x08\x00" + record + crc.to_bytes(2, "big")
+
+
+class _FrameAssembler:
+    def __init__(self) -> None:
+        self._buffer = bytearray()
+
+    def feed(self, chunk: bytes) -> list[bytes]:
+        self._buffer.extend(chunk)
+        frames: list[bytes] = []
+        while len(self._buffer) >= HEADER_LEN:
+            length = int.from_bytes(self._buffer[:2], "little")
+            if length < HEADER_LEN + TAIL_LEN or length > 4096:
+                del self._buffer[0]
+                continue
+            if len(self._buffer) < length:
+                break
+            frames.append(bytes(self._buffer[:length]))
+            del self._buffer[:length]
+        return frames
+
+
+class FossibotLocalTcpServer:
+    """TCP server the station connects to, on its own AP or in place of the cloud."""
+
+    def __init__(
+        self,
+        host: str,
+        port: int,
+        sn_code: str,
+        on_data: Callable[[dict[str, int]], None],
+        on_state: Callable[[bool], None],
+        allowed_prefix: str | None = None,
+        allowed_ip: str | None = None,
+    ) -> None:
+        self.host = host
+        self.port = port
+        self.sn_code = sn_code
+        self._on_data = on_data
+        self._on_state = on_state
+        self._allowed_prefix = allowed_prefix
+        self._allowed_ip = allowed_ip
+        self._warned: set[str] = set()
+        self._server: asyncio.AbstractServer | None = None
+        self._writer: asyncio.StreamWriter | None = None
+        self._reader_task: asyncio.Task | None = None
+        self._watchdog_task: asyncio.Task | None = None
+        self._assembler = _FrameAssembler()
+        self._send_lock = asyncio.Lock()
+
+    def set_callbacks(
+        self,
+        on_data: Callable[[dict[str, int]], None],
+        on_state: Callable[[bool], None],
+    ) -> None:
+        self._on_data = on_data
+        self._on_state = on_state
+
+    async def async_start(self) -> None:
+        self._server = await asyncio.start_server(
+            self._accept, self.host, self.port
+        )
+
+    async def async_stop(self) -> None:
+        if self._reader_task:
+            self._reader_task.cancel()
+        if self._watchdog_task:
+            self._watchdog_task.cancel()
+        if self._writer:
+            await self._close_writer(self._writer)
+        if self._server:
+            self._server.close()
+            await self._server.wait_closed()
+        self._writer = None
+        self._on_state(False)
+
+    async def async_send(self, tag_hex: str, value: int) -> None:
+        if not self._writer or self._writer.is_closing():
+            raise FossibotConnectionError("local station is not connected")
+        async with self._send_lock:
+            self._writer.write(build_local_command(tag_hex, value))
+            await self._writer.drain()
+
+    async def _accept(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        peer = writer.get_extra_info("peername")
+        address = peer[0] if peer else ""
+        if self._allowed_ip and address != self._allowed_ip:
+            self._warn_once(f"Rejected connection from {address}: expected the station at {self._allowed_ip}")
+            await self._close_writer(writer)
+            return
+        if self._allowed_prefix and not address.startswith(self._allowed_prefix):
+            await self._close_writer(writer)
+            return
+        if self._writer:
+            await self._close_writer(self._writer)
+        self._writer = writer
+        self._assembler = _FrameAssembler()
+        self._on_state(False)
+        self._reader_task = asyncio.create_task(self._read_loop(reader, writer))
+
+    async def _read_loop(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        try:
+            while True:
+                chunk = await reader.read(4096)
+                if not chunk:
+                    break
+                for raw in self._assembler.feed(chunk):
+                    hello = parse_local_hello(raw)
+                    if hello is not None:
+                        if hello.casefold() != self.sn_code.casefold():
+                            self._warn_once("Closed station connection: its serial does not match the configured one")
+                            return
+                        writer.write(LOCAL_HELLO_REPLY)
+                        await writer.drain()
+                        continue
+                    parsed = parse_local_frame(raw)
+                    if parsed is None:
+                        continue
+                    _, metrics = parsed
+                    writer.write(LOCAL_ACK_FRAME)
+                    await writer.drain()
+                    self._on_data(metrics)
+                    self._on_state(True)
+                    if self._watchdog_task:
+                        self._watchdog_task.cancel()
+                    self._watchdog_task = asyncio.create_task(self._watchdog())
+        except (asyncio.CancelledError, ConnectionError):
+            pass
+        finally:
+            if self._writer is writer:
+                self._writer = None
+                self._on_state(False)
+            await self._close_writer(writer)
+
+    @staticmethod
+    async def _close_writer(writer: asyncio.StreamWriter) -> None:
+        writer.close()
+        try:
+            await writer.wait_closed()
+        except OSError:
+            pass  # The station reset the connection; it is closed either way.
+
+    def _warn_once(self, message: str) -> None:
+        if message not in self._warned:
+            self._warned.add(message)
+            _LOGGER.warning(message)
+
+    async def _watchdog(self) -> None:
+        await asyncio.sleep(LOCAL_FRAME_TIMEOUT)
+        self._on_state(False)
+
+
 def _crc16_modbus(data: bytes) -> int:
     """CRC16/MODBUS: poly 0xA001 (reflected 0x8005), init 0xFFFF."""
     crc = 0xFFFF
@@ -102,13 +294,22 @@ def build_control_command(tag_hex: str, value: int) -> str:
 class FossibotApiClient:
     """Login + device discovery over the REST API."""
 
-    def __init__(self, session: aiohttp.ClientSession, email: str, password: str) -> None:
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        email: str = "",
+        password: str = "",
+        local: FossibotLocalTcpServer | None = None,
+    ) -> None:
         self.session = session
         self.email = email
         self.password = password
         self.token: str | None = None
+        self.local = local
 
     async def async_login(self) -> str:
+        if self.local:
+            raise FossibotConnectionError("cloud login is unavailable in local mode")
         headers = {**_COMMON_HEADERS, "Content-Type": "application/json"}
         payload = {"username": self.email, "password": self.password}
 
@@ -158,6 +359,8 @@ class FossibotApiClient:
         raise FossibotAuthError("login failed after retries")
 
     async def async_get_devices(self, *, _retried: bool = False) -> list[dict]:
+        if self.local:
+            return [{"snCode": self.local.sn_code, "deviceName": "Fossibot", "state": True}]
         if not self.token:
             await self.async_login()
         headers = {**_COMMON_HEADERS, "Authorization": f"Bearer {self.token}"}
@@ -198,6 +401,9 @@ class FossibotApiClient:
         each on (1) and off (0) - see build_control_command() for the byte
         format this reproduces exactly. Untested for any other tag/value.
         """
+        if self.local:
+            await self.local.async_send(tag_hex, value)
+            return
         if not self.token:
             await self.async_login()
         cmd = build_control_command(tag_hex, value)

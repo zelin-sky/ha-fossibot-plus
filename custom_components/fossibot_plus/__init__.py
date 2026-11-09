@@ -9,12 +9,25 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.event import async_track_time_interval
 
-from .api import FossibotApiClient, FossibotAuthError, FossibotConnectionError
+from .api import (
+    FossibotApiClient,
+    FossibotAuthError,
+    FossibotConnectionError,
+    FossibotLocalTcpServer,
+)
 from .const import (
     CONF_EMAIL,
+    CONF_ALLOWED_PREFIX,
+    CONF_HOST,
+    CONF_MODE,
     CONF_PASSWORD,
+    CONF_PORT,
+    CONF_SERIAL,
+    CONF_STATION_IP,
     DEVICE_STATUS_POLL_INTERVAL,
     DOMAIN,
+    MODE_LAN,
+    MODE_LOCAL,
 )
 from .coordinator import FossibotCoordinator
 
@@ -28,9 +41,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # spec's draft code created its own aiohttp.ClientSession, which would
     # leak connections every time the entry reloads.
     session = async_get_clientsession(hass)
-    api = FossibotApiClient(session, entry.data[CONF_EMAIL], entry.data[CONF_PASSWORD])
-    await api.async_login()
-    devices = await api.async_get_devices()
+    local = None
+    if entry.data.get(CONF_MODE) in (MODE_LOCAL, MODE_LAN):
+        local = FossibotLocalTcpServer(
+            entry.data.get(CONF_HOST, "0.0.0.0"),
+            int(entry.data.get(CONF_PORT, 8058)),
+            entry.data[CONF_SERIAL],
+            lambda _data: None,
+            lambda _online: None,
+            entry.data.get(CONF_ALLOWED_PREFIX) or None,
+            allowed_ip=entry.data.get(CONF_STATION_IP) or None,
+        )
+        api = FossibotApiClient(session, local=local)
+        devices = await api.async_get_devices()
+    else:
+        api = FossibotApiClient(session, entry.data[CONF_EMAIL], entry.data[CONF_PASSWORD])
+        await api.async_login()
+        devices = await api.async_get_devices()
 
     # Per-device model map: options override initial data (options flow)
     device_models: dict[str, str] = (
@@ -43,12 +70,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for device in devices:
             sn_code = device["snCode"]
             device_name = f"{device.get('deviceName', 'Fossibot')}-{sn_code}"
-            coordinator = FossibotCoordinator(hass, api, sn_code, device_name)
+            coordinator = FossibotCoordinator(hass, api, sn_code, device_name, local=local)
+            if local:
+                local.set_callbacks(coordinator._on_data, coordinator.set_online)
             coordinator.set_online(bool(device.get("state", True)))
             await coordinator.async_start()
             coordinators[sn_code] = coordinator
 
         async def _async_refresh_online_status(_now=None) -> None:
+            if local:
+                return
             # Online/offline is a REST-only field, not part of the WS telemetry
             # frames, so it has to be polled separately on a timer.
             # async_get_devices() handles its own token refresh (re-login on 401)

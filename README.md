@@ -27,7 +27,11 @@ Multiple stations in one account are supported — each gets its own device with
 ---
 ## ⚠️ Prerequisites
 
-This integration works **only with devices already connected to Wi-Fi** and visible as **online** in the Fossibot+ app.
+This integration supports three connection modes:
+
+- **Cloud**: the station is connected to Wi-Fi and visible as online in the Fossibot+ app.
+- **Home network (no cloud)**: the station stays on your Wi-Fi and connects to Home Assistant instead of the cloud, through a LAN DNS override.
+- **Local Wi-Fi AP**: Home Assistant connects to the station's `FOSS_<serial>` Wi-Fi network and listens for the station's TCP connection.
 
 It communicates through the FOSSiBOT cloud API — the same channel the mobile app uses when your station is on your home network. **Bluetooth is not used** and is not required.
 
@@ -37,6 +41,57 @@ Before adding this integration to Home Assistant, make sure:
 3. You have a working Fossibot+ account (email + password).
 
 If you can't pair the device in the Fossibot+ app, please contact FOSSiBOT support — that step is handled entirely by the app and is outside the scope of this integration.
+
+### Home network mode (no cloud)
+
+Select **Home network (no cloud)** when adding the integration. The station stays on
+your home Wi-Fi and connects to Home Assistant instead of the FOSSiBOT cloud. It looks
+up `app.fossibot.hk` and opens a plain TCP connection to port `5555`, so a small relay can
+take the place of that endpoint and pass the data to Home Assistant.
+
+The relay is required for reliable use. In testing, the station left Wi-Fi about 75 seconds
+after losing its server and needed a manual restart, so a direct connection would not survive a
+Home Assistant restart. [`tools/fossibot_relay.py`](tools/fossibot_relay.py) holds the station's
+connection while Home Assistant restarts. Python only, no dependencies.
+
+You need:
+
+1. A LAN DNS server that answers `app.fossibot.hk` with the relay host's IP.
+   If possible, limit this to the station's IP, so other devices keep reaching the real
+   cloud. If your router cannot do this itself, point its DHCP DNS setting at a DNS
+   server on an always-on device, because every client using it depends on that device.
+2. A fixed IP for the station and for Home Assistant (DHCP reservations).
+3. The relay running on an always-on host, started at boot, for example:
+   `python3 tools/fossibot_relay.py <host-ip> 5555 <station-ip> 127.0.0.1 5556`.
+   Then accept the form's defaults (`127.0.0.1`, port `5556`) when adding the entry.
+4. The station restarted after the DNS change, so that it picks up the new DNS server.
+
+While this is active, the Fossibot+ app's online mode, cloud charge schedules and
+firmware update checks do not work for the station. To go back, remove the DNS override
+and restart the station. Remove any cloud entry for the same station first, because both
+entries would create the same device.
+
+The relay accepts only the configured station IP, but traffic on your LAN is
+unencrypted and unauthenticated. This relies on undocumented behaviour tested on firmware
+`10-01-02-07`, and a firmware update could end it. Do not use it for safety-critical
+control.
+
+### Local Wi-Fi AP mode
+
+Select **Local Wi-Fi AP** when adding the integration. Connect the Home Assistant
+host to the station Wi-Fi network (`FOSS_<serial>`), then configure the station
+serial number and TCP port `8058`. The station initiates the TCP connection to
+Home Assistant; Home Assistant does not connect to the station.
+
+This mode uses the reverse-engineered binary protocol documented in
+[`Enduranc3/fossibot-control`](https://github.com/Enduranc3/fossibot-control/blob/main/PROTOCOL.md).
+The station's AP password and IP range are firmware-dependent. The integration
+does not require Fossibot cloud credentials in local mode. If the Home Assistant
+host has multiple network interfaces, bind the listener to the appropriate
+address and optionally restrict the client IP prefix.
+
+Local mode is firmware-dependent and should be tested with the station before
+relying on it for automation or safety-critical control.
 
 ---
 
@@ -138,6 +193,50 @@ If you can't pair the device in the Fossibot+ app, please contact FOSSiBOT suppo
 3. У вас є обліковий запис Fossibot+ (email + пароль).
 
 Якщо не вдається підключити пристрій у застосунку Fossibot+ — зверніться до підтримки FOSSiBOT. Цей крок виконується виключно через застосунок і не пов'язаний з цією інтеграцією.
+
+### Режим домашньої мережі (без хмари)
+
+Під час додавання інтеграції виберіть **Домашня мережа (без хмари)**. Станція лишається
+у домашньому Wi-Fi і підключається до Home Assistant замість хмари FOSSiBOT. Вона
+запитує адресу `app.fossibot.hk` і відкриває звичайне TCP-з'єднання на порт `5555`, тому
+невеликий релей може замінити цей сервер і передавати дані в Home Assistant.
+
+Для надійної роботи релей обов'язковий. Під час тестів станція вимикала Wi-Fi приблизно через
+75 секунд після втрати сервера і потребувала ручного перезапуску, тому пряме з'єднання не
+переживе перезапуск Home Assistant. [`tools/fossibot_relay.py`](tools/fossibot_relay.py) тримає
+з'єднання зі станцією, поки Home Assistant перезапускається. Потрібен лише Python.
+
+Вам потрібно:
+
+1. DNS-сервер у локальній мережі, який повертає для `app.fossibot.hk` IP-адресу хоста
+   релея. Бажано обмежити це IP-адресою станції, щоб інші пристрої й далі
+   бачили справжню хмару. Якщо роутер цього не вміє, вкажіть у його налаштуваннях DHCP
+   DNS-сервер на пристрої, що працює постійно: від нього залежатимуть усі клієнти.
+2. Постійна IP-адреса для станції та Home Assistant (резервування DHCP).
+3. Релей на пристрої, що працює постійно і запускає його під час старту, наприклад:
+   `python3 tools/fossibot_relay.py <ip-хоста> 5555 <ip-станції> 127.0.0.1 5556`.
+   Потім під час додавання запису прийміть типові значення форми (`127.0.0.1`, порт `5556`).
+4. Перезапуск станції після зміни DNS, щоб вона отримала новий DNS-сервер.
+
+Поки цей режим діє, для станції не працюють онлайн-режим застосунку Fossibot+, хмарні
+розклади заряджання та перевірка оновлень. Щоб повернутися, приберіть підміну DNS і
+перезапустіть станцію. Спершу видаліть хмарний запис цієї станції, якщо він є, бо обидва
+записи створять той самий пристрій.
+
+Релей приймає лише вказану IP-адресу станції, але трафік у локальній мережі не
+шифрується і не автентифікується. Цей режим спирається на недокументовану поведінку,
+перевірену на прошивці `10-01-02-07`, і оновлення прошивки може його зламати. Не
+використовуйте його для критичного щодо безпеки керування.
+
+### Локальний режим точки доступу Wi-Fi
+
+Під час додавання інтеграції виберіть **Локальна Wi-Fi точка доступу**.
+Підключіть Home Assistant до мережі станції `FOSS_<серійний_номер>` і
+налаштуйте TCP-порт `8058`. Станція сама ініціює TCP-з'єднання з Home
+Assistant. Хмарні облікові дані в цьому режимі не потрібні.
+
+Режим використовує реверс-інжиніринговий бінарний протокол, тому сумісність
+залежить від прошивки. Пароль точки доступу та діапазон IP можуть відрізнятися.
 
 ---
 

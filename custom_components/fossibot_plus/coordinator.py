@@ -3,19 +3,29 @@ from __future__ import annotations
 import logging
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-from .api import FossibotApiClient, FossibotWebSocket
+from .api import FossibotApiClient, FossibotLocalTcpServer, FossibotWebSocket
 from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
 class FossibotCoordinator(DataUpdateCoordinator[dict[str, int]]):
-    def __init__(self, hass: HomeAssistant, api: FossibotApiClient, sn_code: str, device_name: str) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        api: FossibotApiClient,
+        sn_code: str,
+        device_name: str,
+        local: FossibotLocalTcpServer | None = None,
+    ) -> None:
         super().__init__(hass, _LOGGER, name=f"{DOMAIN}_{sn_code}")
         self.sn_code = sn_code
         self.device_name = device_name
         self.online: bool = True
         self._api = api
-        self._ws = FossibotWebSocket(api.session, api, sn_code, self._on_data)
+        self._local = local
+        self._ws = None if local else FossibotWebSocket(
+            api.session, api, sn_code, self._on_data
+        )
 
     def set_online(self, online: bool) -> None:
         if online == self.online:
@@ -28,7 +38,13 @@ class FossibotCoordinator(DataUpdateCoordinator[dict[str, int]]):
         self.async_set_updated_data({**(self.data or {}), **metrics})
 
     async def async_start(self) -> None:
-        await self._ws.async_start()
+        if self._local:
+            await self._local.async_start()
+        else:
+            await self._ws.async_start()
 
     async def async_stop(self) -> None:
-        await self._ws.async_stop()
+        if self._local:
+            await self._local.async_stop()
+        else:
+            await self._ws.async_stop()

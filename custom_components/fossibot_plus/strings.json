@@ -2,17 +2,44 @@
   "config": {
     "step": {
       "user": {
+        "title": "Connection mode",
+        "data": {
+          "mode": "Connection mode"
+        }
+      },
+      "cloud": {
         "title": "Sign in to Fossibot+",
         "data": {
           "email": "Email",
           "password": "Password"
+        }
+      },
+      "local": {
+        "title": "Local Wi-Fi AP",
+        "data": {
+          "serial": "Station serial number",
+          "host": "Listen host",
+          "port": "Listen port",
+          "allowed_prefix": "Allowed client IP prefix"
+        }
+      },
+      "lan": {
+        "title": "Home network (no cloud)",
+        "description": "The station stays on your home Wi-Fi and connects to tools/fossibot_relay.py, which passes its data to Home Assistant. The defaults suit a relay on this host. Your LAN DNS must answer app.fossibot.hk with the relay's address, and the station needs a fixed IP. See the README.",
+        "data": {
+          "serial": "Station serial number",
+          "station_ip": "Relay or station IP address",
+          "host": "Listen host",
+          "port": "Listen port"
         }
       }
     },
     "error": {
       "invalid_auth": "Invalid email or password",
       "cannot_connect": "Could not reach the FOSSiBOT cloud",
-      "unknown": "Unexpected error — check the Home Assistant log"
+      "unknown": "Unexpected error — check the Home Assistant log",
+      "invalid_serial": "Enter a station serial number",
+      "invalid_station_ip": "Enter a valid IPv4 address for the station"
     },
     "abort": {
       "already_configured": "This account is already configured"

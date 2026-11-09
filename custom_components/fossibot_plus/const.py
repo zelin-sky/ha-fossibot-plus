@@ -19,6 +19,22 @@ LOGIN_MAX_RETRIES = 2
 
 CONF_EMAIL = "email"
 CONF_PASSWORD = "password"
+CONF_MODE = "mode"
+CONF_SERIAL = "serial"
+CONF_HOST = "host"
+CONF_PORT = "port"
+CONF_ALLOWED_PREFIX = "allowed_prefix"
+CONF_STATION_IP = "station_ip"
+
+MODE_CLOUD = "cloud"
+MODE_LOCAL = "local"
+MODE_LAN = "lan"
+
+LOCAL_TCP_PORT = 8058
+LAN_TCP_PORT = 5556  # Home Assistant's side of tools/fossibot_relay.py
+LOCAL_FRAME_TIMEOUT = 30
+LOCAL_ACK_FRAME = bytes.fromhex("0a001f00040004001f00")
+LOCAL_HELLO_REPLY = bytes.fromhex("0c0052000600000000000000")
 
 CTRL_COMMAND_PREFIX = "0e000c000800"
 
