@@ -10,5 +10,5 @@
   "iot_class": "cloud_push",
   "integration_type": "hub",
   "requirements": [],
-  "version": "0.2.0"
+  "version": "0.2.5-beta"
 }
